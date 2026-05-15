@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int         @id @default(autoincrement())
+  fullName      String      @map("full_name")
+  email         String      @unique
+  password      String
+  avatar        String?
+  role          String      @default("member")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  borrowings    Borrowing[]
+  
+  @@map("users")
+}
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  books     Book[]
+  
+  @@map("categories")
+}
+
+model Book {
+  id          Int         @id @default(autoincrement())
+  title       String
+  author      String
+  isbn        String      @unique
+  publisher   String
+  year        Int
+  synopsis    String      @db.Text
+  cover       String?
+  pdfFile     String?     @map("pdf_file")
+  pages       Int?
+  stock       Int         @default(1)
+  available   Int         @default(1)
+  categoryId  Int         @map("category_id")
+  category    Category    @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  borrowings  Borrowing[]
+  
+  @@map("books")
+}
+
+model Borrowing {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  bookId      Int      @map("book_id")
+  borrowDate  DateTime @default(now()) @map("borrow_date")
+  dueDate     DateTime @map("due_date")
+  returnDate  DateTime? @map("return_date")
+  status      String   @default("active")
+  user        User     @relation(fields: [userId], references: [id])
+  book        Book     @relation(fields: [bookId], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  @@map("borrowings")
+}
