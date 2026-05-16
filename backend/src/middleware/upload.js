@@ -80,19 +80,19 @@ const fileFilter = (req, file, cb) => {
 const uploadBookCover = multer({
   storage: bookCoverStorage,
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 300 * 1024 * 1024 }, // 300MB
 });
 
 const uploadBookPdf = multer({
   storage: bookPdfStorage,
   fileFilter,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  limits: { fileSize: 300 * 1024 * 1024 }, // 300MB
 });
 
 const uploadProfile = multer({
   storage: profileStorage,
   fileFilter,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB untuk profil
 });
 
 module.exports = { uploadBookCover, uploadBookPdf, uploadProfile };

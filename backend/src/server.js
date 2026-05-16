@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const multer = require('multer'); // Tambahkan ini
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -37,7 +38,7 @@ app.use((req, res) => {
   });
 });
 
-// Error handler
+// Error handler (sekarang multer sudah terdefinisi)
 app.use((err, req, res, next) => {
   console.error(err.stack);
   
