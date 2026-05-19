@@ -1,7 +1,6 @@
-// User
 export interface User {
   id: number;
-  fullName: string;   // HARUS ADA
+  fullName: string;
   email: string;
   avatar?: string;
   role: string;
@@ -9,7 +8,6 @@ export interface User {
   updatedAt?: string;
 }
 
-// Category
 export interface Category {
   id: number;
   name: string;
@@ -19,7 +17,6 @@ export interface Category {
   };
 }
 
-// Book
 export interface Book {
   id: number;
   title: string;
@@ -37,12 +34,12 @@ export interface Book {
   category: Category;
   createdAt: string;
   updatedAt: string;
-  rating?: number;        // untuk UI dashboard
-  totalReviews?: number;  // untuk UI dashboard
-  categoryString?: string; // fallback string
+  // Properti tambahan untuk UI
+  rating?: number;
+  totalReviews?: number;
+  categoryString?: string;   // ✅ Tambahkan ini untuk dashboard
 }
 
-// Borrowing
 export interface Borrowing {
   id: number;
   userId: number;
@@ -57,7 +54,6 @@ export interface Borrowing {
   updatedAt: string;
 }
 
-// API Response
 export interface ApiResponse<T> {
   success: boolean;
   message: string;

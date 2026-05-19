@@ -1,6 +1,16 @@
+// frontend/src/store/authStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User } from '@/types';
+
+export interface User {
+  id: number;
+  fullName: string;   // ✅ Gunakan fullName, bukan full_name
+  email: string;
+  avatar?: string;
+  role: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 interface AuthState {
   user: User | null;
@@ -18,10 +28,9 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
-      isLoading: false, // langsung false, tidak ada loading awal
+      isLoading: false,
 
       setAuth: (user, token) => {
-        // Simpan token terpisah agar mudah diakses oleh axios
         localStorage.setItem('token', token);
         set({
           user,
@@ -33,8 +42,6 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         localStorage.removeItem('token');
-        // `auth-storage` akan dihapus otomatis oleh zustand persist saat state di-reset,
-        // tapi kita hapus juga untuk memastikan
         localStorage.removeItem('auth-storage');
         set({
           user: null,
@@ -49,7 +56,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'auth-storage', // key localStorage yang digunakan
+      name: 'auth-storage',
       partialize: (state) => ({
         user: state.user,
         token: state.token,

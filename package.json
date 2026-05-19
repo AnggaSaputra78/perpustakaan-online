@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "frontend": "npm --prefix frontend run dev",
+    "backend": "npm --prefix backend run dev",
+
+    "ngrok-frontend": "wait-on tcp:3000 && ngrok http 3000",
+    "ngrok-backend": "wait-on tcp:5000 && ngrok http 5000",
+
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+
+    "dev:public": "concurrently \"npm run backend\" \"npm run frontend\" \"npm run ngrok-frontend\" \"npm run ngrok-backend\""
+  }
+}

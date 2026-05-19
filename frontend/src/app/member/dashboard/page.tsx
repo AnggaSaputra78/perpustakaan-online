@@ -10,7 +10,6 @@ import {
   Bell,
   BookOpen,
   Bookmark,
-  Calendar,
   CheckCircle,
   ChevronDown,
   ChevronLeft,
@@ -36,16 +35,14 @@ import {
   Star,
   Sun,
   Tag,
-  Upload,
   User,
   X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { bookService } from '@/services/book.service';
-import { borrowingService } from '@/services/borrowing.service';
 import { categoryService } from '@/services/category.service';
-import { Book, Borrowing, Category } from '@/types';
+import { Book, Category } from '@/types';
 
 interface ExtendedBook extends Book {
   rating: number;
@@ -74,7 +71,7 @@ interface Notification {
   read: boolean;
 }
 
-type ActiveMenu = 'dashboard' | 'favorites' | 'history' | 'borrowings' | 'categories' | 'profile';
+type ActiveMenu = 'dashboard' | 'favorites' | 'history' | 'categories' | 'profile';
 type ThemeMode = 'dark' | 'light';
 
 type SidebarItem = {
@@ -95,16 +92,17 @@ const STORAGE_KEYS = {
   theme: 'theme',
 };
 
-const activeMenus: ActiveMenu[] = ['dashboard', 'favorites', 'history', 'borrowings', 'categories', 'profile'];
+const activeMenus: ActiveMenu[] = ['dashboard', 'favorites', 'history', 'categories', 'profile'];
 
+// Fallback kategori hanya jika backend tidak mengembalikan data
 const fallbackCategories: Category[] = [
   { id: 1, name: 'Pendidikan', slug: 'pendidikan' },
   { id: 2, name: 'Akademik', slug: 'akademik' },
-  { id: 3, name: 'Pemrograman', slug: 'pemrograman' },
-  { id: 4, name: 'Fiksi & Sastra', slug: 'fiksi-sastra' },
+  { id: 3, name: 'Literasi', slug: 'literasi' },
+  { id: 4, name: 'IPS', slug: 'ips' },
 ];
 
-// Untuk sementara, daftar buku bawaan dikosongkan.
+// Buku bawaan dikosongkan, semua buku dari backend
 const defaultBooks: ExtendedBook[] = [];
 
 function isActiveMenu(value: string | null): value is ActiveMenu {
@@ -156,7 +154,6 @@ export default function MemberDashboardPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [backendBooks, setBackendBooks] = useState<Book[]>([]);
-  const [borrowings, setBorrowings] = useState<Borrowing[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loadingData, setLoadingData] = useState(false);
@@ -187,18 +184,6 @@ export default function MemberDashboardPage() {
 
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
-
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadForm, setUploadForm] = useState({
-    title: '',
-    author: '',
-    isbn: '',
-    synopsis: '',
-    categoryId: '1',
-  });
-  const [uploadCover, setUploadCover] = useState<File | null>(null);
-  const [uploadPdf, setUploadPdf] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
 
   const itemsPerPage = 9;
 
@@ -317,7 +302,6 @@ export default function MemberDashboardPage() {
     [currentPage, filteredBooks]
   );
 
-  const activeBorrowings = useMemo(() => borrowings.filter((item) => item.status === 'active'), [borrowings]);
   const favoriteBooks = useMemo(() => allBooks.filter((book) => favorites.includes(book.id)), [allBooks, favorites]);
   const personalReviews = useMemo(
     () => reviews.filter((review) => review.userId === (displayUser?.id || 0)),
@@ -339,7 +323,6 @@ export default function MemberDashboardPage() {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [allBooks, categories]);
 
-  const uploadCategories = categories.length > 0 ? categories : fallbackCategories;
   const unreadNotificationCount = notifications.filter((notification) => !notification.read).length;
 
   const sidebarItems = useMemo<SidebarItem[]>(
@@ -347,11 +330,10 @@ export default function MemberDashboardPage() {
       { id: 'dashboard', icon: Library, label: 'Dashboard', badge: allBooks.length },
       { id: 'favorites', icon: Bookmark, label: 'Favorit', badge: favorites.length },
       { id: 'history', icon: Clock3, label: 'Riwayat', badge: history.length },
-      { id: 'borrowings', icon: Calendar, label: 'Peminjaman', badge: activeBorrowings.length },
       { id: 'categories', icon: Layers, label: 'Kategori', badge: Object.keys(categoryCounts).length },
       { id: 'profile', icon: User, label: 'Profil' },
     ],
-    [activeBorrowings.length, allBooks.length, categoryCounts, favorites.length, history.length]
+    [allBooks.length, favorites.length, history.length, categoryCounts]
   );
 
   useEffect(() => {
@@ -366,39 +348,16 @@ export default function MemberDashboardPage() {
     setLoadingData(true);
     setErrorData(null);
     try {
-      const [booksRes, borrowRes, catRes] = await Promise.all([
+      const [booksRes, catRes] = await Promise.all([
         bookService.getAll({ limit: 100 }),
-        borrowingService.getHistory({}),
         categoryService.getAll(),
       ]);
       const books = booksRes.data.books || [];
-      const borrowingList = borrowRes.data.borrowings || [];
       setBackendBooks(books);
-      setBorrowings(borrowingList);
-      setCategories(catRes.data || []);
-      const activeList = borrowingList.filter((item: Borrowing) => item.status === 'active');
-      const overdueList = activeList.filter((item: Borrowing) => new Date(item.dueDate) < new Date());
+      // Gunakan kategori dari backend; jika kosong, gunakan fallbackCategories
+      setCategories(catRes.data && catRes.data.length > 0 ? catRes.data : fallbackCategories);
+
       const nextNotifications: Notification[] = [];
-      if (overdueList.length > 0) {
-        nextNotifications.push({
-          id: 'overdue',
-          type: 'error',
-          title: 'Buku Terlambat',
-          message: `${overdueList.length} buku sudah melewati jatuh tempo.`,
-          time: new Date().toISOString(),
-          read: false,
-        });
-      }
-      if (activeList.length > 0) {
-        nextNotifications.push({
-          id: 'active',
-          type: 'warning',
-          title: 'Peminjaman Aktif',
-          message: `${activeList.length} buku sedang dipinjam.`,
-          time: new Date().toISOString(),
-          read: false,
-        });
-      }
       if (books.length > 0) {
         nextNotifications.push({
           id: 'newbooks',
@@ -412,7 +371,7 @@ export default function MemberDashboardPage() {
       setNotifications(nextNotifications);
     } catch {
       setBackendBooks([]);
-      setBorrowings([]);
+      // Jangan set kategori fallback saat error, biarkan kosong
       setCategories([]);
       setErrorData('Gagal memuat data dari server. Koleksi lokal tetap bisa digunakan.');
     } finally {
@@ -474,16 +433,6 @@ export default function MemberDashboardPage() {
     link.click();
   };
 
-  const handleReturnBook = async (borrowId: number) => {
-    try {
-      await borrowingService.returnBook(borrowId);
-      toast.success('Buku dikembalikan');
-      fetchData();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Gagal mengembalikan buku');
-    }
-  };
-
   const handleMarkNotificationRead = (id: string) => {
     setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
   };
@@ -495,38 +444,6 @@ export default function MemberDashboardPage() {
     setSearch('');
     setCurrentPage(1);
     handleMenuClick('dashboard');
-  };
-
-  const handleUploadSubmit = async () => {
-    if (!uploadForm.title.trim() || !uploadForm.author.trim()) {
-      toast.error('Judul dan penulis wajib diisi');
-      return;
-    }
-    const formData = new FormData();
-    formData.append('title', uploadForm.title.trim());
-    formData.append('author', uploadForm.author.trim());
-    formData.append('publisher', 'Self Publishing');
-    formData.append('year', new Date().getFullYear().toString());
-    formData.append('synopsis', uploadForm.synopsis.trim() || '-');
-    formData.append('categoryId', uploadForm.categoryId || uploadCategories[0]?.id.toString() || '1');
-    formData.append('stock', '5');
-    if (uploadForm.isbn.trim()) formData.append('isbn', uploadForm.isbn.trim());
-    if (uploadCover) formData.append('cover', uploadCover);
-    if (uploadPdf) formData.append('pdfFile', uploadPdf);
-    setUploading(true);
-    try {
-      await bookService.create(formData);
-      toast.success('Buku berhasil diupload');
-      setShowUploadModal(false);
-      setUploadForm({ title: '', author: '', isbn: '', synopsis: '', categoryId: '1' });
-      setUploadCover(null);
-      setUploadPdf(null);
-      fetchData();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Upload gagal');
-    } finally {
-      setUploading(false);
-    }
   };
 
   const handleSubmitReview = () => {
@@ -588,7 +505,6 @@ export default function MemberDashboardPage() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setSelectedBook(null);
-        setShowUploadModal(false);
         setShowReviewModal(false);
         setShowEditProfile(false);
         setShowNotifications(false);
@@ -708,13 +624,12 @@ export default function MemberDashboardPage() {
     const stats = [
       { label: 'Buku Dibaca', value: history.length, icon: BookOpen, color: 'text-blue-400', menu: 'history' as ActiveMenu },
       { label: 'Favorit', value: favorites.length, icon: Heart, color: 'text-red-400', menu: 'favorites' as ActiveMenu },
-      { label: 'Dipinjam', value: activeBorrowings.length, icon: Calendar, color: 'text-green-400', menu: 'borrowings' as ActiveMenu },
       { label: 'Review', value: reviews.length, icon: Award, color: 'text-yellow-400', menu: 'profile' as ActiveMenu },
     ];
 
     return (
       <>
-        <div className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-4">
+        <div className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-3">
           {stats.map((stat) => {
             const Icon = stat.icon;
             return (
@@ -1048,9 +963,7 @@ export default function MemberDashboardPage() {
             {[
               ['Buku Dibaca', history.length],
               ['Favorit', favorites.length],
-              ['Dipinjam', activeBorrowings.length],
               ['Review', personalReviews.length],
-              ['Total Peminjaman', borrowings.length],
               ['Poin', history.length * 10 + favorites.length * 5],
             ].map(([label, value]) => (
               <div key={label}>
@@ -1083,72 +996,6 @@ export default function MemberDashboardPage() {
           )}
         </div>
       </div>
-    </div>
-  );
-
-  const renderBorrowings = () => (
-    <div className="fade-up">
-      <h2 className="mb-8 text-3xl font-black">Peminjaman Saya</h2>
-      {borrowings.length === 0 ? (
-        renderEmptyState(Calendar, 'Belum ada peminjaman', 'Klik tombol Pinjam Buku pada koleksi untuk menambahkan peminjaman.', 'Cari Buku', () =>
-          handleMenuClick('dashboard')
-        )
-      ) : (
-        <div className="space-y-4">
-          {borrowings.map((borrow) => {
-            const isActive = borrow.status === 'active';
-            const dueDate = new Date(borrow.dueDate);
-            const overdue = isActive && dueDate < new Date();
-            const borrowedBook: ExtendedBook = {
-              ...borrow.book,
-              image: toAssetUrl(borrow.book?.cover),
-              pdf: toAssetUrl(borrow.book?.pdfFile),
-              rating: borrow.book?.rating || 0,
-              totalReviews: borrow.book?.totalReviews || 0,
-              categoryString: borrow.book?.category?.name || 'Lainnya',
-            };
-
-            return (
-              <div key={borrow.id} className="glass card-hover flex flex-col justify-between gap-4 rounded-2xl p-4 md:flex-row md:items-center">
-                <div className="flex items-center gap-4">
-                  <BookCover book={borrowedBook} className="h-20 w-14 rounded-lg object-cover" />
-                  <div>
-                    <h3 className="text-lg font-bold">{borrow.book?.title || 'Buku'}</h3>
-                    <p className="text-sm text-gray-400">Pinjam: {formatDate(borrow.borrowDate)}</p>
-                    <p className="text-sm text-gray-400">
-                      Jatuh tempo: {formatDate(borrow.dueDate)}
-                      {overdue && <span className="ml-2 text-red-400">(Terlambat)</span>}
-                    </p>
-                    {borrow.returnDate && <p className="text-sm text-green-400">Dikembalikan: {formatDate(borrow.returnDate)}</p>}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <span
-                    className={`rounded-full px-3 py-1 text-sm font-medium ${
-                      isActive
-                        ? overdue
-                          ? 'bg-red-600/20 text-red-400'
-                          : 'bg-yellow-600/20 text-yellow-400'
-                        : 'bg-green-600/20 text-green-400'
-                    }`}
-                  >
-                    {isActive ? (overdue ? 'Terlambat' : 'Aktif') : 'Dikembalikan'}
-                  </span>
-                  {isActive && (
-                    <button
-                      type="button"
-                      onClick={() => handleReturnBook(borrow.id)}
-                      className="btn-animate rounded-xl bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700"
-                    >
-                      Kembalikan
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 
@@ -1194,8 +1041,6 @@ export default function MemberDashboardPage() {
         return renderHistory();
       case 'profile':
         return renderProfile();
-      case 'borrowings':
-        return renderBorrowings();
       case 'categories':
         return renderCategories();
       case 'dashboard':
@@ -1253,6 +1098,7 @@ export default function MemberDashboardPage() {
             );
           })}
         </nav>
+
         <button
           type="button"
           onClick={toggleTheme}
@@ -1427,98 +1273,6 @@ export default function MemberDashboardPage() {
 
         <div className="relative z-10">{renderContent()}</div>
       </main>
-
-      {showUploadModal && (
-        <div className="modal-animation fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setShowUploadModal(false)}>
-          <div
-            className="glass relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-gray-700 p-8"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button type="button" onClick={() => setShowUploadModal(false)} className="absolute right-4 top-4 text-gray-400 hover:text-white">
-              <X size={24} />
-            </button>
-            <h2 className="mb-8 text-3xl font-black">Upload Buku Baru</h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm text-gray-400">Judul</label>
-                <input
-                  type="text"
-                  value={uploadForm.title}
-                  onChange={(event) => setUploadForm((prev) => ({ ...prev, title: event.target.value }))}
-                  className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-white outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-gray-400">Penulis</label>
-                <input
-                  type="text"
-                  value={uploadForm.author}
-                  onChange={(event) => setUploadForm((prev) => ({ ...prev, author: event.target.value }))}
-                  className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-white outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-gray-400">ISBN (opsional)</label>
-                <input
-                  type="text"
-                  value={uploadForm.isbn}
-                  onChange={(event) => setUploadForm((prev) => ({ ...prev, isbn: event.target.value }))}
-                  className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-white outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-gray-400">Kategori</label>
-                <select
-                  value={uploadForm.categoryId}
-                  onChange={(event) => setUploadForm((prev) => ({ ...prev, categoryId: event.target.value }))}
-                  className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-white outline-none"
-                >
-                  {uploadCategories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm text-gray-400">Sinopsis</label>
-                <textarea
-                  value={uploadForm.synopsis}
-                  onChange={(event) => setUploadForm((prev) => ({ ...prev, synopsis: event.target.value }))}
-                  rows={3}
-                  className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-white outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-gray-400">Cover (opsional)</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => setUploadCover(event.target.files?.[0] || null)}
-                  className="w-full text-sm text-gray-400 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-white"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-gray-400">File PDF</label>
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(event) => setUploadPdf(event.target.files?.[0] || null)}
-                  className="w-full text-sm text-gray-400 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-white"
-                />
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleUploadSubmit}
-              disabled={uploading}
-              className="btn-animate mt-8 w-full rounded-2xl bg-blue-600 py-4 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {uploading ? 'Mengupload...' : 'Upload Buku'}
-            </button>
-          </div>
-        </div>
-      )}
 
       {showEditProfile && (
         <div className="modal-animation fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setShowEditProfile(false)}>

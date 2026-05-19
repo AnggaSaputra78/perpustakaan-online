@@ -27,7 +27,7 @@ export interface AuthResponse {
 export const authService = {
   async login(data: LoginData) {
     const response = await api.post<ApiResponse<AuthResponse>>('/auth/login', data);
-    return response.data;
+    return response.data; // Mengembalikan ApiResponse<AuthResponse>
   },
 
   async register(data: RegisterData) {
